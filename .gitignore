@@ -1,0 +1,69 @@
+# ===============================
+# General
+# ===============================
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ===============================
+# IDE / Editor
+# ===============================
+.vscode/
+.idea/
+*.iml
+
+# ===============================
+# Rust / Cargo
+# ===============================
+# Cargo build output
+target/
+
+# Rustfmt / Clippy
+.rustfmt.toml
+.clippy.toml
+
+# ===============================
+# Module runtime data (DO NOT COMMIT)
+# ===============================
+# Runtime-generated directories inside module/
+module/runtime/
+module/.runtime/
+
+# State / cache files
+module/**/state.json
+module/**/cache/
+module/**/.cache/
+
+# ===============================
+# Built binaries (local build artifacts)
+# ===============================
+# Rust compiled binaries copied into module/bin
+module/bin/uxiconsd
+module/bin/uxiconsd.*
+module/bin/*.so
+
+# aapt2 binaries (fetched per-arch, do not track)
+module/bin/aapt2
+module/bin/aapt2.*
+
+# ===============================
+# Packed module archives
+# ===============================
+*.zip
+
+# ===============================
+# Scripts temporary output
+# ===============================
+scripts/.tmp/
+scripts/tmp/
+scripts/*.out
+
+# ===============================
+# CI / local env
+# ===============================
+.env
+.env.*
