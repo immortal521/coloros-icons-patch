@@ -1,0 +1,171 @@
+name: Release Icons
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "channel: stable/beta"
+        required: true
+        default: "stable"
+      icons_version:
+        description: "icons version, e.g. 2026.02.10"
+        required: true
+      revision:
+        description: "revision number, e.g. 1"
+        required: true
+        default: "1"
+      notes:
+        description: "release notes (optional)"
+        required: false
+        default: ""
+  push:
+    tags:
+      - "icons/*"
+
+permissions:
+  contents: write
+
+jobs:
+  pack-release-pages:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve meta
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CHANNEL=""
+          ICONS_VERSION=""
+          REVISION=""
+          NOTES=""
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            # tag format: icons/<channel>/v2026.02.10-r1
+            TAG="${GITHUB_REF_NAME}"
+            # split: icons/<channel>/<rest>
+            CHANNEL="$(echo "$TAG" | cut -d/ -f2)"
+            REST="$(echo "$TAG" | cut -d/ -f3)"
+            # REST: v2026.02.10-r1
+            REST="${REST#v}"
+            ICONS_VERSION="${REST%-r*}"
+            REVISION="${REST##*-r}"
+            NOTES=""
+          else
+            CHANNEL="${{ inputs.channel }}"
+            ICONS_VERSION="${{ inputs.icons_version }}"
+            REVISION="${{ inputs.revision }}"
+            NOTES="${{ inputs.notes }}"
+          fi
+
+          ZIP_NAME="uxicons-${ICONS_VERSION}-r${REVISION}.zip"
+          TAG_NAME="icons/${CHANNEL}/v${ICONS_VERSION}-r${REVISION}"
+
+          echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
+          echo "icons_version=$ICONS_VERSION" >> $GITHUB_OUTPUT
+          echo "revision=$REVISION" >> $GITHUB_OUTPUT
+          echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "notes=$NOTES" >> $GITHUB_OUTPUT
+
+      - name: Validate icons dir
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -d "uxicons/hdpi"
+          test "$(find uxicons/hdpi -mindepth 1 | head -n 1 | wc -l)" -gt 0
+
+      - name: Create zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f "${{ steps.meta.outputs.zip_name }}"
+          zip -r "${{ steps.meta.outputs.zip_name }}" uxicons -x "*.DS_Store" -x "__MACOSX/*"
+
+      - name: Compute sha256 and size
+        id: hash
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA256="$(sha256sum "${{ steps.meta.outputs.zip_name }}" | awk '{print $1}')"
+          SIZE="$(stat -c%s "${{ steps.meta.outputs.zip_name }}")"
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+          echo "size=$SIZE" >> $GITHUB_OUTPUT
+
+      - name: Build index.json
+        id: index
+        shell: bash
+        env:
+          NOTES: ${{ steps.meta.outputs.notes }}
+        run: |
+          set -euo pipefail
+          PUBLISHED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          TAG="${{ steps.meta.outputs.tag_name }}"
+          ZIP="${{ steps.meta.outputs.zip_name }}"
+          DL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${ZIP}"
+
+          jq -n \
+            --arg channel "${{ steps.meta.outputs.channel }}" \
+            --arg icons_version "${{ steps.meta.outputs.icons_version }}" \
+            --argjson revision ${{ steps.meta.outputs.revision }} \
+            --arg zip_name "${ZIP}" \
+            --arg zip_sha256 "${{ steps.hash.outputs.sha256 }}" \
+            --argjson zip_size ${{ steps.hash.outputs.size }} \
+            --arg download_url "${DL}" \
+            --arg published_at "${PUBLISHED_AT}" \
+            --arg notes "${NOTES:-}" \
+            '{
+              channel: $channel,
+              icons_version: $icons_version,
+              revision: $revision,
+              zip_name: $zip_name,
+              zip_sha256: $zip_sha256,
+              zip_size: $zip_size,
+              download_url: $download_url,
+              published_at: $published_at,
+              notes: $notes
+            }' > index.json
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag_name }}
+          name: ${{ format('UXIcons {0} {1} r{2}', steps.meta.outputs.channel, steps.meta.outputs.icons_version, steps.meta.outputs.revision) }}
+          body: ${{ steps.meta.outputs.notes }}
+          files: |
+            ${{ steps.meta.outputs.zip_name }}
+            index.json
+
+      # ---- Publish index.json to gh-pages ----
+      - name: Publish index.json to GitHub Pages (gh-pages)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CHANNEL="${{ steps.meta.outputs.channel }}"
+          ICONS_VERSION="${{ steps.meta.outputs.icons_version }}"
+          REVISION="${{ steps.meta.outputs.revision }}"
+
+          # clone gh-pages branch (create if missing)
+          rm -rf gh-pages
+          git clone --depth 1 --branch gh-pages "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" gh-pages 2>/dev/null || {
+            git clone --depth 1 "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" gh-pages
+            (cd gh-pages && git checkout --orphan gh-pages && git rm -rf . || true)
+          }
+
+          mkdir -p "gh-pages/${CHANNEL}"
+          cp -f index.json "gh-pages/${CHANNEL}/index.json"
+
+          # optional: keep history copies
+          mkdir -p "gh-pages/${CHANNEL}/history"
+          cp -f index.json "gh-pages/${CHANNEL}/history/${ICONS_VERSION}-r${REVISION}.json"
+
+          cd gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "${CHANNEL}/index.json" "${CHANNEL}/history/${ICONS_VERSION}-r${REVISION}.json"
+          git commit -m "Update ${CHANNEL} index: ${ICONS_VERSION}-r${REVISION}" || exit 0
+          git push origin gh-pages
