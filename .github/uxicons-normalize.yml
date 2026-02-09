@@ -11,6 +11,7 @@ on:
       - "uxicons/**"
       - "scripts/normalize_uxicons_images.py"
       - ".github/workflows/uxicons-normalize.yml"
+  workflow_dispatch:
 
 jobs:
   normalize-check:
