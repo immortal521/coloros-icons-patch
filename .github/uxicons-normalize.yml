@@ -1,0 +1,70 @@
+name: uxicons normalize
+
+on:
+  pull_request:
+    paths:
+      - "uxicons/**"
+      - "scripts/normalize_uxicons_images.py"
+      - ".github/workflows/uxicons-normalize.yml"
+  push:
+    paths:
+      - "uxicons/**"
+      - "scripts/normalize_uxicons_images.py"
+      - ".github/workflows/uxicons-normalize.yml"
+
+jobs:
+  normalize-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history for diff)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pillow
+
+      - name: Compute changed png files under uxicons/
+        id: diff
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.sha }}"
+          else
+            # push
+            BASE="${{ github.event.before }}"
+            HEAD="${{ github.sha }}"
+          fi
+
+          echo "Base: $BASE"
+          echo "Head: $HEAD"
+
+          # Only added/modified/renamed PNGs under uxicons/
+          git diff --name-only --diff-filter=AMR "$BASE" "$HEAD" \
+            | grep -E '^uxicons/.*\.png$' || true > changed_pngs.txt
+
+          echo "Changed PNGs:"
+          cat changed_pngs.txt || true
+
+          # expose for later steps
+          COUNT=$(wc -l < changed_pngs.txt | tr -d ' ')
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+
+      - name: Dry-run normalize (fail if changes needed)
+        if: steps.diff.outputs.count != '0'
+        run: |
+          python scripts/normalize_uxicons_images.py --dry-run --verbose $(cat changed_pngs.txt)
+
+      - name: Skip (no changed PNGs)
+        if: steps.diff.outputs.count == '0'
+        run: echo "No changed PNGs under uxicons/, skipping."
