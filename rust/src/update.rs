@@ -10,6 +10,10 @@ use std::{
 use crate::settings::Settings;
 use crate::state::State;
 
+use std::os::unix::fs::PermissionsExt;
+
+use nix::unistd::{chown, Gid, Uid};
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Index {
     pub channel: String,
@@ -59,14 +63,54 @@ fn sha256_file(p: &Path) -> Result<String> {
     Ok(hex::encode(h.finalize()))
 }
 
+fn chmod_best_effort(p: &Path, mode: u32) {
+    let _ = fs::set_permissions(p, fs::Permissions::from_mode(mode));
+}
+
+fn chown_root_best_effort(p: &Path) {
+    let _ = chown(p, Some(Uid::from_raw(0)), Some(Gid::from_raw(0)));
+}
+
+fn fix_tree_perms_best_effort(root: &Path) {
+    if !root.exists() {
+        return;
+    }
+    let mut stack = vec![root.to_path_buf()];
+    while let Some(p) = stack.pop() {
+        let meta = match fs::symlink_metadata(&p) {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        if meta.is_dir() {
+            chmod_best_effort(&p, 0o755);
+            chown_root_best_effort(&p);
+            let rd = match fs::read_dir(&p) {
+                Ok(r) => r,
+                Err(_) => continue,
+            };
+            for ent in rd.flatten() {
+                stack.push(ent.path());
+            }
+        } else if meta.is_file() {
+            chmod_best_effort(&p, 0o644);
+            chown_root_best_effort(&p);
+        } else {
+            // 其他类型（symlink 等）不动
+        }
+    }
+}
+
 fn unzip_to(zip_path: &Path, out_dir: &Path) -> Result<()> {
     if out_dir.exists() {
         fs::remove_dir_all(out_dir)?;
     }
     fs::create_dir_all(out_dir)?;
+    chmod_best_effort(out_dir, 0o755);
+    chown_root_best_effort(out_dir);
 
     let f = fs::File::open(zip_path)?;
     let mut z = zip::ZipArchive::new(f).context("open zip failed")?;
+
     for i in 0..z.len() {
         let mut file = z.by_index(i)?;
         let name = file.name().to_string();
@@ -84,22 +128,29 @@ fn unzip_to(zip_path: &Path, out_dir: &Path) -> Result<()> {
 
         if name.ends_with('/') {
             fs::create_dir_all(&outpath)?;
+            chmod_best_effort(&outpath, 0o755);
+            chown_root_best_effort(&outpath);
             continue;
         }
 
         if let Some(p) = outpath.parent() {
             fs::create_dir_all(p)?;
+            chmod_best_effort(p, 0o755);
+            chown_root_best_effort(p);
         }
+
         let mut out = fs::File::create(&outpath)?;
         std::io::copy(&mut file, &mut out)?;
+        out.flush()?;
+
+        chmod_best_effort(&outpath, 0o644);
+        chown_root_best_effort(&outpath);
     }
+
     Ok(())
 }
 
 fn find_staging_hdpi(staging_root: &Path) -> Result<PathBuf> {
-    // 支持两种结构：
-    // A) uxicons/hdpi/...
-    // B) hdpi/...
     let a = staging_root.join("uxicons").join("hdpi");
     if a.is_dir() {
         return Ok(a);
@@ -126,7 +177,7 @@ fn remove_path(p: &Path) -> Result<()> {
     Ok(())
 }
 
-/// 清空目录内容（不删除目录本体）
+/// 清空目录内容
 /// 用于回滚：确保 bind mount 源目录 inode 不变
 fn clear_dir_contents(dir: &Path) -> Result<()> {
     if !dir.is_dir() {
@@ -139,8 +190,8 @@ fn clear_dir_contents(dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// 把 src_dir 下的一级子项移动到 dst_dir（同一文件系统内 fs::rename 很快）
-/// 注意：只移动子项，不替换 src_dir / dst_dir 目录本体（避免 bind mount 失效）
+/// 把 src_dir 下的一级子项移动到 dst_dir
+/// 只移动子项，不替换 src_dir / dst_dir 目录本体
 fn move_children(src_dir: &Path, dst_dir: &Path) -> Result<()> {
     fs::create_dir_all(dst_dir)?;
     if !src_dir.is_dir() {
@@ -166,14 +217,16 @@ fn move_children(src_dir: &Path, dst_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// 将 staging 的 hdpi 内容应用到 live hdpi（保持 live hdpi inode 不变，适配 bind mount）
+/// 将 staging 的 hdpi 内容应用到 live hdpi
 /// - 旧内容先移到 backup/hdpi-<ts>
 /// - 新内容移入 live/uxicons/hdpi
-/// - 失败则清空 live 并从 backup 恢复（backup 不混入残留新内容）
+/// - 失败则清空 live 并从 backup 恢复
 fn apply_into_bound_hdpi(moddir: &str, staging_root: &Path, backup_root: &Path) -> Result<()> {
     let live_hdpi = PathBuf::from(moddir).join("uxicons").join("hdpi");
     fs::create_dir_all(&live_hdpi)
         .with_context(|| format!("mkdir live hdpi: {}", live_hdpi.display()))?;
+    chmod_best_effort(&live_hdpi, 0o755);
+    chown_root_best_effort(&live_hdpi);
 
     // staging hdpi
     let staging_hdpi = find_staging_hdpi(staging_root)?;
@@ -183,8 +236,10 @@ fn apply_into_bound_hdpi(moddir: &str, staging_root: &Path, backup_root: &Path) 
     let backup_hdpi = backup_root.join(format!("hdpi-{}", ts));
     fs::create_dir_all(&backup_hdpi)
         .with_context(|| format!("mkdir backup hdpi: {}", backup_hdpi.display()))?;
+    chmod_best_effort(&backup_hdpi, 0o755);
+    chown_root_best_effort(&backup_hdpi);
 
-    // 1) 先把 live 的旧内容挪到 backup（不动 live_hdpi 目录本体）
+    // 1) 先把 live 的旧内容挪到 backup
     move_children(&live_hdpi, &backup_hdpi).context("backup live hdpi children failed")?;
 
     // 2) 再把 staging 的新内容挪到 live
@@ -196,6 +251,9 @@ fn apply_into_bound_hdpi(moddir: &str, staging_root: &Path, backup_root: &Path) 
         let _ = move_children(&backup_hdpi, &live_hdpi);
         return Err(e);
     }
+
+    // 确保新内容权限正确（防止 zip 内部权限/umask 搞出 0600）
+    fix_tree_perms_best_effort(&live_hdpi);
 
     Ok(())
 }
@@ -229,7 +287,17 @@ pub fn run_update(
     fs::create_dir_all(&staging)?;
     fs::create_dir_all(&backup)?;
 
-    // state.json（无论成功失败都尽量更新 last_run / last_error）
+    // 确保 runtime 相关目录权限（目录 0755）
+    chmod_best_effort(&rt, 0o755);
+    chown_root_best_effort(&rt);
+    chmod_best_effort(&dl, 0o755);
+    chown_root_best_effort(&dl);
+    chmod_best_effort(&staging, 0o755);
+    chown_root_best_effort(&staging);
+    chmod_best_effort(&backup, 0o755);
+    chown_root_best_effort(&backup);
+
+    // state.json
     let st_path = state_path(&moddir);
     let mut st = State::load_or_default(&st_path)?;
     st.touch_now();
@@ -256,7 +324,7 @@ pub fn run_update(
         .json()
         .context("parse index.json failed")?;
 
-    // 2) channel 校验（用 settings 的 channel 作为期望）
+    // 2) channel 校验
     let expected_channel = cfg.channel.clone().unwrap_or("stable".to_string());
     if idx.channel != expected_channel {
         let msg = format!(
@@ -288,7 +356,7 @@ pub fn run_update(
         });
     }
 
-    // 4) 下载 zip（清洗 URL，避免出现空白/换行）
+    // 4) 下载 zip
     let download_url = idx.download_url.split_whitespace().collect::<String>();
 
     let zip_path = dl.join("icons.tmp.zip");
@@ -335,11 +403,13 @@ pub fn run_update(
     let staging_root = staging.join("uxicons_unpack");
     unzip_to(&zip_path, &staging_root).context("unzip failed")?;
 
-    // 7) 应用到 bind mount 源目录：$MODDIR/uxicons/hdpi（不替换目录本体）
+    fix_tree_perms_best_effort(&staging_root);
+
+    // 7) 应用到 bind mount 源目录：$MODDIR/uxicons/hdpi
     apply_into_bound_hdpi(&moddir, &staging_root, &backup)
         .context("apply into bound hdpi failed")?;
 
-    // 清理 staging（可选）
+    // 清理 staging
     let _ = fs::remove_dir_all(&staging_root);
 
     // 8) 更新 state.json

@@ -1,12 +1,13 @@
 [package]
 name = "uxiconsd"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 
 [dependencies]
 anyhow = "1.0.101"
 clap = { version = "4.5.57", features = ["derive"] }
 hex = "0.4.3"
+nix = { version = "0.31.1", default-features=false, features=["user", "fs"] }
 reqwest = { version = "0.12.12", default-features = false, features = [ "blocking", "json", "gzip", "rustls-tls-webpki-roots"] }
 rustls-platform-verifier = "0.6.2"
 serde = { version = "1.0.228", features = ["derive"] }
