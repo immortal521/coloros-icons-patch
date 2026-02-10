@@ -154,7 +154,6 @@ fn list_packages_with_apk() -> Result<Vec<(String, String)>> {
             }
         }
     }
-
     Ok(res)
 }
 
@@ -168,20 +167,7 @@ fn check_aapt2(aapt2: &str, verbose: bool) -> Result<String> {
         .output()
         .with_context(|| format!("failed to exec aapt2: {}", aapt2))?;
 
-    if verbose {
-        eprintln!("[uxiconsd] aapt2(version) exit={:?}", out.status.code());
-        eprintln!(
-            "[uxiconsd] aapt2(version) stdout: {}",
-            String::from_utf8_lossy(&out.stdout)
-        );
-        eprintln!(
-            "[uxiconsd] aapt2(version) stderr: {}",
-            String::from_utf8_lossy(&out.stderr)
-        );
-    }
-
     if out.status.success() {
-        // 一些版本把版本信息写到 stderr，stdout 可能为空
         let s1 = String::from_utf8_lossy(&out.stdout).trim().to_string();
         let s2 = String::from_utf8_lossy(&out.stderr).trim().to_string();
         if !s1.is_empty() {
@@ -196,21 +182,11 @@ fn check_aapt2(aapt2: &str, verbose: bool) -> Result<String> {
     if verbose {
         eprintln!("[uxiconsd] checking aapt2 with `dump --help` fallback");
     }
+
     let out2 = Command::new(aapt2)
         .args(["dump", "--help"])
         .output()
         .with_context(|| format!("failed to exec aapt2 (fallback): {}", aapt2))?;
-
-    if verbose {
-        eprintln!(
-            "[uxiconsd] aapt2(dump --help) exit={:?}",
-            out2.status.code()
-        );
-        eprintln!(
-            "[uxiconsd] aapt2(dump --help) stderr: {}",
-            String::from_utf8_lossy(&out2.stderr)
-        );
-    }
 
     if out2.status.success() {
         Ok("dump --help ok".to_string())
@@ -234,7 +210,6 @@ fn check_apk_themed_icon(aapt2: &str, apk: &str, verbose: bool) -> Result<CheckR
     }
 
     let mut checked = 0usize;
-
     for xml in candidates {
         checked += 1;
         match aapt2_xmltree_has_monochrome(aapt2, apk, &xml, verbose) {
@@ -246,8 +221,6 @@ fn check_apk_themed_icon(aapt2: &str, apk: &str, verbose: bool) -> Result<CheckR
             }
             Ok(false) => continue,
             Err(e) => {
-                // 如果 xmltree 对单个候选失败，继续尝试下一个；最终如果全失败，会在上层表现为 NotSupported，
-                // 你也可以改成“全失败则 themed_icon=null”。当前保持可用。
                 if verbose {
                     eprintln!("[uxiconsd] xmltree error (ignored): {:#}", e);
                 }
@@ -290,7 +263,6 @@ fn aapt2_xmltree_has_monochrome(
         );
     }
 
-    // 兼容你当前 aapt2：需要 --file
     let output = Command::new(aapt2)
         .args(["dump", "xmltree", apk, "--file", xml_in_apk])
         .output()

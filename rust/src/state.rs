@@ -8,6 +8,7 @@ pub struct State {
     pub module: ModuleState,
     pub icons: IconsState,
     pub last_run_utc: Option<String>,
+    pub last_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -42,6 +43,7 @@ impl Default for State {
                 updated_at_utc: "".to_string(),
             },
             last_run_utc: None,
+            last_error: None,
         }
     }
 }
@@ -65,5 +67,13 @@ impl State {
 
     pub fn touch_now(&mut self) {
         self.last_run_utc = Some(OffsetDateTime::now_utc().to_string());
+    }
+
+    pub fn set_error(&mut self, msg: impl Into<String>) {
+        self.last_error = Some(msg.into());
+    }
+
+    pub fn clear_error(&mut self) {
+        self.last_error = None;
     }
 }
