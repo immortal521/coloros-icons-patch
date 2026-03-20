@@ -90,12 +90,12 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 24.14.0
-          package-manager-cache: true
+          package-manager-cache: false
 
       - uses: pnpm/action-setup@v4
         with:
           version: 10.30.3
-          cache: true
+          cache: false
 
       - name: Build cip (arm64-v8a)
         working-directory: ./cip
