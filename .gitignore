@@ -67,3 +67,5 @@ scripts/*.out
 # ===============================
 .env
 .env.*
+/webui/dist
+/webui/node_modules
