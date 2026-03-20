@@ -83,7 +83,6 @@ jobs:
         run: |
           set -euo pipefail
           rm -f "${{ steps.meta.outputs.zip_name }}"
-          cd uxicons
           (cd uxicons && zip -r "../${{ steps.meta.outputs.zip_name }}" . -x "*.DS_Store" -x "__MACOSX/*")
           cd ..
 
