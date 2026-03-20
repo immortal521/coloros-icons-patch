@@ -1,6 +1,6 @@
 use clap::{Parser, Subcommand};
 
-use crate::cli::{check::CheckCmd, scan::ScanCmd};
+use crate::cli::{check::CheckCmd, config::ConfigCmd, scan::ScanCmd};
 
 use super::{init::InitCmd, update::UpdateCmd};
 
@@ -23,4 +23,9 @@ pub enum Commands {
     Update(UpdateCmd),
 
     Scan(ScanCmd),
+
+    Config {
+        #[command(subcommand)]
+        cmd: ConfigCmd,
+    },
 }
