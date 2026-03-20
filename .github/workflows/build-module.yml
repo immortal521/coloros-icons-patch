@@ -1,0 +1,191 @@
+name: Release Module
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "channel: stable/beta"
+        required: true
+        default: "stable"
+      version:
+        description: "module version, e.g. 2026.03.21"
+        required: true
+      revision:
+        description: "revision number, e.g. 1"
+        required: true
+        default: "1"
+      notes:
+        description: "release notes (optional)"
+        required: false
+        default: ""
+  push:
+    tags:
+      - "module/*"
+
+permissions:
+  contents: write
+
+jobs:
+  pack-release-pages:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Resolve meta
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          CHANNEL=""
+          MODULE_VERSION=""
+          REVISION=""
+          NOTES=""
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            # tag format: module/<channel>/v2026.03.21-r1
+            TAG="${GITHUB_REF_NAME}"
+            CHANNEL="$(echo "$TAG" | cut -d/ -f2)"
+            REST="$(echo "$TAG" | cut -d/ -f3)"
+            REST="${REST#v}"
+            MODULE_VERSION="${REST%-r*}"
+            REVISION="${REST##*-r}"
+            NOTES=""
+          else
+            CHANNEL="${{ inputs.channel }}"
+            MODULE_VERSION="${{ inputs.version }}"
+            REVISION="${{ inputs.revision }}"
+            NOTES="${{ inputs.notes }}"
+          fi
+
+          ZIP_NAME="module-${MODULE_VERSION}-r${REVISION}.zip"
+          TAG_NAME="module/${CHANNEL}/v${MODULE_VERSION}-r${REVISION}"
+
+          echo "channel=$CHANNEL" >> $GITHUB_OUTPUT
+          echo "module_version=$MODULE_VERSION" >> $GITHUB_OUTPUT
+          echo "revision=$REVISION" >> $GITHUB_OUTPUT
+          echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "notes=$NOTES" >> $GITHUB_OUTPUT
+
+      - name: Ensure module directory exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p module/bin module/webroot
+
+      - name: Build cip (arm64-v8a)
+      - uses: moonrepo/setup-rust@v1
+        working-directory: ./cip
+        run: |
+          cargo install cargo-ndk || true
+          cargo ndk -t arm64-v8a build --release
+          cp -f target/arm64-v8a/release/cip ../module/bin/
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24.14.0
+          package-manager-cache: false
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+          cache: true
+
+      - name: Build webui
+        working-directory: ./webui
+        run: |
+          pnpm install
+          pnpm build
+          cp -r dist/* ../module/webroot/
+
+      - name: Create zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f "${{ steps.meta.outputs.zip_name }}"
+          cd module
+          zip -r "../${{ steps.meta.outputs.zip_name }}" . -x "*.DS_Store" -x "__MACOSX/*"
+          cd ..
+
+      - name: Compute sha256 and size
+        id: hash
+        shell: bash
+        run: |
+          SHA256="$(sha256sum "${{ steps.meta.outputs.zip_name }}" | awk '{print $1}')"
+          SIZE="$(stat -c%s "${{ steps.meta.outputs.zip_name }}")"
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+          echo "size=$SIZE" >> $GITHUB_OUTPUT
+
+      - name: Build index.json
+        id: index
+        shell: bash
+        run: |
+          PUBLISHED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          TAG="${{ steps.meta.outputs.tag_name }}"
+          ZIP="${{ steps.meta.outputs.zip_name }}"
+          DL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${ZIP}"
+
+          jq -n \
+            --arg channel "${{ steps.meta.outputs.channel }}" \
+            --arg version "${{ steps.meta.outputs.module_version }}" \
+            --argjson revision ${{ steps.meta.outputs.revision }} \
+            --arg zip_name "$ZIP" \
+            --arg zip_sha256 "${{ steps.hash.outputs.sha256 }}" \
+            --argjson zip_size ${{ steps.hash.outputs.size }} \
+            --arg download_url "$DL" \
+            --arg published_at "$PUBLISHED_AT" \
+            --arg notes "${{ steps.meta.outputs.notes }}" \
+            '{
+              channel: $channel,
+              version: $version,
+              revision: $revision,
+              zip_name: $zip_name,
+              zip_sha256: $zip_sha256,
+              zip_size: $zip_size,
+              download_url: $download_url,
+              published_at: $published_at,
+              notes: $notes
+            }' > index.json
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag_name }}
+          name: ${{ format('Module {0} {1} r{2}', steps.meta.outputs.channel, steps.meta.outputs.module_version, steps.meta.outputs.revision) }}
+          body: ${{ steps.meta.outputs.notes }}
+          files: |
+            ${{ steps.meta.outputs.zip_name }}
+            index.json
+
+- name: Publish index.json to GitHub Pages
+  shell: bash
+  run: |
+    CHANNEL="${{ steps.meta.outputs.channel }}"
+    VERSION="${{ steps.meta.outputs.module_version }}"
+    REVISION="${{ steps.meta.outputs.revision }}"
+
+    rm -rf gh-pages
+    git clone --depth 1 --branch gh-pages "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" gh-pages 2>/dev/null || {
+      git clone --depth 1 "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" gh-pages
+      (cd gh-pages && git checkout --orphan gh-pages && git rm -rf . || true)
+    }
+
+    # 在 gh-pages 下加 module 前缀
+    mkdir -p "gh-pages/module/${CHANNEL}"
+    cp -f index.json "gh-pages/module/${CHANNEL}/index.json"
+    mkdir -p "gh-pages/module/${CHANNEL}/history"
+    cp -f index.json "gh-pages/module/${CHANNEL}/history/${VERSION}-r${REVISION}.json"
+
+    cd gh-pages
+    git config user.name "github-actions[bot]"
+    git config user.email "github-actions[bot]@users.noreply.github.com"
+    git add "module/${CHANNEL}/index.json" "module/${CHANNEL}/history/${VERSION}-r${REVISION}.json"
+    git commit -m "Update module/${CHANNEL} index: ${VERSION}-r${REVISION}" || exit 0
+    git push origin gh-pages
