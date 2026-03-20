@@ -75,8 +75,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test -d "uxicons/hdpi"
-          test "$(find uxicons/hdpi -mindepth 1 | head -n 1 | wc -l)" -gt 0
+          test -d "uxicons"
+          test "$(find uxicons -mindepth 1 | head -n 1 | wc -l)" -gt 0
 
       - name: Create zip
         shell: bash
