@@ -90,7 +90,7 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 24.14.0
-          package-manager-cache: false
+          package-manager-cache: true
 
       - uses: pnpm/action-setup@v4
         with:
