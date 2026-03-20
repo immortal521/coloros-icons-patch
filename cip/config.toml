@@ -1,0 +1,12 @@
+[default]
+icons_version = "0.1.0"
+channel = "beta"
+runtime_dir = "./"
+temp_dir = "./runtime"
+target_dir = "./icons"
+
+[sources.beta]
+url = "https://immortal521.github.io/coloros-icons-patch/beta/index.json"
+
+[sources.stable]
+url = "https://immortal521.github.io/coloros-icons-patch/stable/index.json"

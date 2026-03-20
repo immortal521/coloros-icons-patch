@@ -7,7 +7,6 @@ pub struct Settings {
     pub module_id: Option<String>,
     pub channel: Option<String>,
     pub index_url: Option<String>,
-    pub aapt2_path: Option<String>,
     pub scan_user_only: Option<bool>,
     pub scan_limit: Option<usize>,
 }
@@ -18,7 +17,6 @@ impl Default for Settings {
             module_id: Some("ColorOSIconsPatch".to_string()),
             channel: Some("stable".to_string()),
             index_url: None,
-            aapt2_path: None,
             scan_user_only: Some(true),
             scan_limit: None,
         }
