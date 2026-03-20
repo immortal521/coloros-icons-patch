@@ -164,28 +164,28 @@ jobs:
             ${{ steps.meta.outputs.zip_name }}
             index.json
 
-- name: Publish index.json to GitHub Pages
-  shell: bash
-  run: |
-    CHANNEL="${{ steps.meta.outputs.channel }}"
-    VERSION="${{ steps.meta.outputs.module_version }}"
-    REVISION="${{ steps.meta.outputs.revision }}"
+      - name: Publish index.json to GitHub Pages
+        shell: bash
+        run: |
+          CHANNEL="${{ steps.meta.outputs.channel }}"
+          VERSION="${{ steps.meta.outputs.module_version }}"
+          REVISION="${{ steps.meta.outputs.revision }}"
 
-    rm -rf gh-pages
-    git clone --depth 1 --branch gh-pages "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" gh-pages 2>/dev/null || {
-      git clone --depth 1 "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" gh-pages
-      (cd gh-pages && git checkout --orphan gh-pages && git rm -rf . || true)
-    }
+          rm -rf gh-pages
+          git clone --depth 1 --branch gh-pages "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" gh-pages 2>/dev/null || {
+            git clone --depth 1 "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" gh-pages
+            (cd gh-pages && git checkout --orphan gh-pages && git rm -rf . || true)
+          }
 
-    # 在 gh-pages 下加 module 前缀
-    mkdir -p "gh-pages/module/${CHANNEL}"
-    cp -f index.json "gh-pages/module/${CHANNEL}/index.json"
-    mkdir -p "gh-pages/module/${CHANNEL}/history"
-    cp -f index.json "gh-pages/module/${CHANNEL}/history/${VERSION}-r${REVISION}.json"
+          # 在 gh-pages 下加 module 前缀
+          mkdir -p "gh-pages/module/${CHANNEL}"
+          cp -f index.json "gh-pages/module/${CHANNEL}/index.json"
+          mkdir -p "gh-pages/module/${CHANNEL}/history"
+          cp -f index.json "gh-pages/module/${CHANNEL}/history/${VERSION}-r${REVISION}.json"
 
-    cd gh-pages
-    git config user.name "github-actions[bot]"
-    git config user.email "github-actions[bot]@users.noreply.github.com"
-    git add "module/${CHANNEL}/index.json" "module/${CHANNEL}/history/${VERSION}-r${REVISION}.json"
-    git commit -m "Update module/${CHANNEL} index: ${VERSION}-r${REVISION}" || exit 0
-    git push origin gh-pages
+          cd gh-pages
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add "module/${CHANNEL}/index.json" "module/${CHANNEL}/history/${VERSION}-r${REVISION}.json"
+          git commit -m "Update module/${CHANNEL} index: ${VERSION}-r${REVISION}" || exit 0
+          git push origin gh-pages
