@@ -84,7 +84,7 @@ jobs:
           set -euo pipefail
           rm -f "${{ steps.meta.outputs.zip_name }}"
           cd uxicons
-          zip -r "${{ steps.meta.outputs.zip_name }}" uxicons -x "*.DS_Store" -x "__MACOSX/*"
+          (cd uxicons && zip -r "../${{ steps.meta.outputs.zip_name }}" . -x "*.DS_Store" -x "__MACOSX/*")
           cd ..
 
       - name: Compute sha256 and size
