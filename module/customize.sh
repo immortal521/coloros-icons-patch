@@ -31,7 +31,7 @@ CIP_BIN="$BIN_DIR/cip"
 
 ui_print "- Running cip init..."
 "$CIP_BIN" init --config "$PERSIST_DIR/config.toml" \
-  --target-dir "$MODPATH/$UXICONS_DST" \
+  --target-dir "/data/adb/modules/$MODID/$UXICONS_DST" \
   --temp-dir "$RUNTIME_DIR" || ui_print "- cip init skipped (config exists or error)"
 
 # ui_print "- Checking for updates via cip..."
