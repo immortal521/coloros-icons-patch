@@ -135,6 +135,7 @@ export const mockSpawn = () => {
     stderr: {
       on(event: "data", cb: any) {
         if (event === "data") stderrCb = cb;
+        console.log(stderrCb);
       },
     },
     on(event: string, cb: any) {
