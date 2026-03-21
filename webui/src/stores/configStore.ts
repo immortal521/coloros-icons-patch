@@ -25,5 +25,6 @@ const setChannel = (channel: Channel) => {
 export const useConfigStore = () => {
   return {
     config,
+    setChannel,
   };
 };
