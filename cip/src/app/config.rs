@@ -36,6 +36,10 @@ pub fn set(cmd: SetCmd) -> Result<()> {
         doc["default"]["temp_dir"] = value(temp.to_str().unwrap());
     }
 
+    if let Some(version) = cmd.icons_version {
+        doc["default"]["icons_version"] = value(version);
+    }
+
     fs::write(&path, doc.to_string())?;
 
     println!("✔ config updated");

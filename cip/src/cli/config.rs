@@ -29,4 +29,7 @@ pub struct SetCmd {
 
     #[arg(long)]
     pub temp_dir: Option<PathBuf>,
+
+    #[arg(long)]
+    pub icons_version: Option<String>,
 }
