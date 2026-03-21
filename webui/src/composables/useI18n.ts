@@ -29,10 +29,15 @@ function t(key: string, params?: Record<string, any>) {
   return msg ? format(msg, params) : key;
 }
 
+function getLocales() {
+  return Object.keys(messages) as Locale[];
+}
+
 export function useI18n() {
   return {
     locale: computed(() => locale.value),
     setLocale,
+    getLocales,
     t,
   };
 }
