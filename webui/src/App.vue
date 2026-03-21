@@ -1,47 +1,83 @@
 <script setup lang="ts">
-import { ref, onMounted } from "vue";
+import { ref, computed, useTemplateRef, onMounted } from "vue";
 import Topbar from "./components/Topbar.vue";
 import Navbar from "./components/Navbar.vue";
 import { tabs, type TabKey } from "./tabs";
 
 const page = ref<TabKey>("home");
-const contentRef = ref<HTMLElement | null>(null);
+
+const currentIndex = computed(() => tabs.findIndex((t) => t.key === page.value));
 
 function setPage(p: TabKey) {
   page.value = p;
-
-  const index = tabs.findIndex((t) => t.key === p);
-  const el = contentRef.value;
-
-  if (el) {
-    el.scrollTo({
-      left: index * el.clientWidth,
-      behavior: "smooth",
-    });
-  }
 }
 
-let scrollTimer: number | null = null;
-function onScroll() {
-  if (scrollTimer) {
-    clearTimeout(scrollTimer);
+let startX = 0;
+let startTime = 0;
+
+const deltaX = ref(0);
+const isDragging = ref(false);
+
+const contentRef = useTemplateRef<HTMLDivElement>("content");
+const width = ref(0);
+const pageCount = tabs.length;
+
+const innerStyle = computed(() => {
+  const offset = -currentIndex.value * width.value + deltaX.value;
+
+  return {
+    transform: `translate3d(${offset}px, 0, 0)`,
+    transition: isDragging.value ? "none" : "transform 0.25s ease-out",
+  };
+});
+
+function onTouchStart(e: TouchEvent) {
+  startX = e.touches[0].clientX;
+  startTime = Date.now();
+  isDragging.value = true;
+}
+
+function onTouchMove(e: TouchEvent) {
+  const x = e.touches[0].clientX;
+  let dx = x - startX;
+
+  if ((currentIndex.value === 0 && dx > 0) || (currentIndex.value === pageCount - 1 && dx < 0)) {
+    dx *= 0.35;
   }
 
-  scrollTimer = window.setTimeout(() => {
-    const el = contentRef.value;
-    if (!el) return;
+  deltaX.value = dx;
+}
 
-    const index = Math.round(el.scrollLeft / el.clientWidth);
-    const tab = tabs[index];
+function onTouchEnd() {
+  const duration = Date.now() - startTime;
+  const velocity = deltaX.value / duration;
 
-    if (tab && tab.key !== page.value) {
-      page.value = tab.key;
-    }
-  }, 100);
+  const threshold = width.value * 0.25;
+
+  let nextIndex = currentIndex.value;
+
+  if (deltaX.value > threshold || velocity > 0.5) {
+    nextIndex--;
+  } else if (deltaX.value < -threshold || velocity < -0.5) {
+    nextIndex++;
+  }
+
+  nextIndex = Math.max(0, Math.min(pageCount - 1, nextIndex));
+
+  page.value = tabs[nextIndex].key;
+
+  deltaX.value = 0;
+  isDragging.value = false;
 }
 
 onMounted(() => {
-  contentRef.value?.addEventListener("scroll", onScroll);
+  if (!contentRef.value) return;
+
+  const observer = new ResizeObserver((entries) => {
+    width.value = entries[0].contentRect.width;
+  });
+
+  observer.observe(contentRef.value);
 });
 </script>
 
@@ -49,11 +85,19 @@ onMounted(() => {
   <div class="layout">
     <Topbar :activeTab="page" />
 
-    <main class="content" ref="contentRef">
-      <div v-for="tab in tabs" :key="tab.key" class="page">
-        <component :is="tab.component" />
+    <div
+      class="content"
+      ref="content"
+      @touchstart="onTouchStart"
+      @touchmove="onTouchMove"
+      @touchend="onTouchEnd"
+    >
+      <div class="pages-inner" :style="innerStyle">
+        <div v-for="tab in tabs" :key="tab.key" class="page">
+          <component :is="tab.component" />
+        </div>
       </div>
-    </main>
+    </div>
 
     <Navbar :activeTab="page" @tabChange="setPage" />
   </div>
@@ -68,19 +112,17 @@ onMounted(() => {
 
 .content {
   flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.pages-inner {
   display: flex;
-
-  overflow-x: auto;
-  overflow-y: hidden;
-
-  scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
+  height: 100%;
 }
 
 .page {
   width: 100vw;
   flex-shrink: 0;
-
-  scroll-snap-align: start;
 }
 </style>
