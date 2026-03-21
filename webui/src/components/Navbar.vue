@@ -1,30 +1,18 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from "vue";
-
-interface Tab {
-  id: "home" | "settings";
-  icon: string;
-  label: string;
-}
+import { useI18n } from "../composables/useI18n";
+import { tabs, type TabKey } from "../tabs";
 
 interface Props {
-  activeTab: "home" | "settings";
-  onTabChange: (id: "home" | "settings") => void;
+  activeTab: TabKey;
+  onTabChange: (id: TabKey) => void;
 }
 
 const props = defineProps<Props>();
 const navContainer = ref<HTMLElement | null>(null);
 const tabRefs = ref<Record<string, HTMLElement>>({});
 
-// 写死首页和设置 tab
-const TABS: Tab[] = [
-  { id: "home", icon: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z", label: "首页" },
-  {
-    id: "settings",
-    icon: "M19.43 12.98c.04-.32.07-.66.07-1s-.03-.68-.07-1l2.11-1.65a.5.5 0 0 0 .12-.63l-2-3.46a.5.5 0 0 0-.6-.22l-2.49 1a7.07 7.07 0 0 0-1.7-.99l-.38-2.65A.5.5 0 0 0 14 2h-4a.5.5 0 0 0-.5.42l-.38 2.65c-.63.23-1.22.55-1.7.99l-2.49-1a.5.5 0 0 0-.6.22l-2 3.46a.5.5 0 0 0 .12.63L4.57 11c-.04.32-.07.66-.07 1s.03.68.07 1l-2.11 1.65a.5.5 0 0 0-.12.63l2 3.46c.14.24.42.34.68.22l2.49-1c.48.44 1.07.76 1.7.99l.38 2.65c.04.28.28.48.56.48h4c.28 0 .52-.2.56-.48l.38-2.65c.63-.23 1.22-.55 1.7-.99l2.49 1c.26.12.54.02.68-.22l2-3.46a.5.5 0 0 0-.12-.63l-2.11-1.65zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z",
-    label: "设置",
-  },
-];
+const { t } = useI18n();
 
 // 监听 activeTab 改变，滚动到中间
 watch(
@@ -44,7 +32,7 @@ watch(
   { immediate: true },
 );
 
-function setTab(id: "home" | "settings") {
+function setTab(id: TabKey) {
   props.onTabChange(id);
 }
 </script>
@@ -52,10 +40,10 @@ function setTab(id: "home" | "settings") {
 <template>
   <nav :class="['bottom-nav']" ref="navContainer">
     <button
-      v-for="tab in TABS"
-      :key="tab.id"
-      :class="['nav-tab', props.activeTab === tab.id ? 'active' : '']"
-      @click="setTab(tab.id)"
+      v-for="tab in tabs"
+      :key="tab.key"
+      :class="['nav-tab', props.activeTab === tab.key ? 'active' : '']"
+      @click="setTab(tab.key)"
       type="button"
       ref="el => (tabRefs[tab.id] = el)"
     >
@@ -64,7 +52,7 @@ function setTab(id: "home" | "settings") {
           <path :d="tab.icon" />
         </svg>
       </div>
-      <span class="label">{{ tab.label }}</span>
+      <span class="label">{{ t(tab.label) }}</span>
     </button>
   </nav>
 </template>

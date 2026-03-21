@@ -1,95 +1,86 @@
+<script setup lang="ts">
+import { ref, onMounted } from "vue";
+import Topbar from "./components/Topbar.vue";
+import Navbar from "./components/Navbar.vue";
+import { tabs, type TabKey } from "./tabs";
+
+const page = ref<TabKey>("home");
+const contentRef = ref<HTMLElement | null>(null);
+
+function setPage(p: TabKey) {
+  page.value = p;
+
+  const index = tabs.findIndex((t) => t.key === p);
+  const el = contentRef.value;
+
+  if (el) {
+    el.scrollTo({
+      left: index * el.clientWidth,
+      behavior: "smooth",
+    });
+  }
+}
+
+let scrollTimer: number | null = null;
+function onScroll() {
+  if (scrollTimer) {
+    clearTimeout(scrollTimer);
+  }
+
+  scrollTimer = window.setTimeout(() => {
+    const el = contentRef.value;
+    if (!el) return;
+
+    const index = Math.round(el.scrollLeft / el.clientWidth);
+    const tab = tabs[index];
+
+    if (tab && tab.key !== page.value) {
+      page.value = tab.key;
+    }
+  }, 100);
+}
+
+onMounted(() => {
+  contentRef.value?.addEventListener("scroll", onScroll);
+});
+</script>
+
 <template>
   <div class="layout">
-    <Topbar />
-    <main class="content">
-      <Home v-if="page === 'home'" :config="config" />
-      <Settings v-else :config="config" @update="updateConfig" />
+    <Topbar :activeTab="page" />
+
+    <main class="content" ref="contentRef">
+      <div v-for="tab in tabs" :key="tab.key" class="page">
+        <component :is="tab.component" />
+      </div>
     </main>
+
     <Navbar :activeTab="page" @tabChange="setPage" />
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref } from "vue";
-import Home from "./views/Home.vue";
-import Settings from "./views/Settings.vue";
-import Topbar from "./components/Topbar.vue";
-import Navbar from "./components/Navbar.vue";
-
-const page = ref<"home" | "settings">("home");
-
-const setPage = (p: "home" | "settings") => {
-  page.value = p;
-};
-
-const config = ref({
-  default: {
-    icons_version: "0.1.0",
-    channel: "beta",
-    runtime_dir: "./",
-    temp_dir: "./runtime",
-    target_dir: "./icons",
-  },
-});
-
-function updateConfig(newCfg: any) {
-  config.value.default = newCfg;
-}
-</script>
-
 <style scoped>
-.app-root {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  background-color: var(--md-sys-color-background);
-}
 .layout {
   height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .content {
   flex: 1;
-  overflow-x: hidden;
-  position: relative;
   display: flex;
-  flex-direction: column;
-  overflow-y: auto;
-  height: calc(100% - 200px);
+
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
 }
-.swipe-track {
-  display: flex;
-  width: 500%;
-  height: 100%;
-  will-change: transform;
-}
-.swipe-page {
-  width: 20%;
-  height: 100%;
+
+.page {
+  width: 100vw;
   flex-shrink: 0;
-  position: relative;
-  overflow: hidden;
-}
-.page-scroller {
-  height: 100%;
-  overflow-y: auto;
-  padding: 16px;
-  padding-bottom: calc(16px + var(--safe-area-inset-bottom, 0px));
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 800px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-}
-* {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-::-webkit-scrollbar {
-  display: none;
+
+  scroll-snap-align: start;
 }
 </style>

@@ -11,8 +11,6 @@ pub fn load(path: PathBuf) -> Result<Config> {
     let config: Config = toml::from_str(&content)
         .with_context(|| format!("failed to parse TOML from {:?}", path))?;
 
-    println!("Using config: {:?}", path);
-
     Ok(config)
 }
 
