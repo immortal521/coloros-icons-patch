@@ -49,29 +49,41 @@ interface UpdateInfo {
   revision: number;
 }
 
-type UpdateEvent =
+export type UpdateEvent =
   | { type: "stage"; value: string }
   | { type: "progress"; stage: string; value: number }
-  | { type: "info"; message?: string }
+  | { type: "info"; value?: string; version?: string; message?: string }
   | { type: "done" }
   | { type: "log"; message: string }
   | { type: "error"; message: string };
 
-/* ---------------- KernelSU Runtime ---------------- */
+/* ---------------- Runtime ---------------- */
 
 let ksuExec: KsuExec | null = null;
 let ksuSpawn: KsuSpawn | null = null;
 let initPromise: Promise<void> | null = null;
+
+/* ---------------- init ---------------- */
 
 const initKernelSU = async () => {
   if (ksuExec && ksuSpawn) return;
 
   if (!initPromise) {
     initPromise = (async () => {
+      // ✅ dev 自动 mock（不会打进生产包）
+      if (import.meta.env.DEV) {
+        console.warn("[KernelSU] DEV MODE → using MOCK");
+
+        const mock = await import("../mocks/kernelsuMock");
+
+        ksuExec = mock.mockExec;
+        ksuSpawn = mock.mockSpawn;
+        return;
+      }
+
+      // ✅ 生产环境：真实 kernelsu
       try {
         const mod = (await import("kernelsu")) as any;
-
-        // ✅ 兼容 default export
         const api = mod.default ?? mod;
 
         ksuExec = api.exec ?? null;
@@ -139,6 +151,17 @@ export function useAPI() {
     );
   };
 
+  const getPackagesCount = async (): Promise<number> => {
+    const cmd = `find ${PATHS.TARGET_DIR} -mindepth 1 -maxdepth 1 -type d | wc -l`;
+
+    const stdout = await execOrThrow(cmd);
+
+    const num = parseInt(stdout.trim(), 10);
+    if (isNaN(num)) return 0;
+
+    return num;
+  };
+
   /* ---------- check update ---------- */
 
   const checkUpdate = async (): Promise<UpdateInfo> => {
@@ -146,102 +169,80 @@ export function useAPI() {
     return JSON.parse(stdout);
   };
 
-  /* ---------- 🚀 流式 update ---------- */
+  /* ---------- 🚀 update（流式） ---------- */
 
   const updateStream = async (
     onEvent: (e: UpdateEvent) => void,
     onDone?: () => void,
     onError?: (err: string) => void,
-  ) => {
+  ): Promise<void> => {
     const spawn = await ensureSpawn();
 
-    const cmd = PATHS.CIP_BIN;
-    const args = ["update", "--config", PATHS.CONFIG, "--json"];
+    return new Promise((resolve, reject) => {
+      const child = spawn(PATHS.CIP_BIN, ["update", "--config", PATHS.CONFIG, "--json"]);
 
-    console.log("[update] spawn:", cmd, args);
+      let newVersion: string | null = null;
+      let buffer = "";
 
-    onEvent({ type: "log", message: "启动更新进程" });
+      child.stdout.on("data", (chunk: string) => {
+        buffer += chunk;
 
-    const child = spawn(cmd, args);
-    let newVersion: string | null = null;
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || "";
 
-    let buffer = "";
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
 
-    /* ---------- stdout ---------- */
-    child.stdout.on("data", (chunk: string) => {
-      console.log("[stdout raw]", chunk);
+          try {
+            const parsed = JSON.parse(trimmed);
 
-      buffer += chunk;
+            if (parsed.type === "info" && parsed.value === "version") {
+              newVersion = parsed.version;
+            }
 
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-
-        try {
-          const parsed = JSON.parse(trimmed);
-
-          if (parsed.type === "info" && parsed.value === "version") {
-            newVersion = parsed.version;
-            console.log("[update] captured version:", newVersion);
+            onEvent(parsed);
+          } catch {
+            onEvent({ type: "log", message: trimmed });
           }
-
-          console.log("[stdout json]", parsed);
-          onEvent(parsed);
-        } catch {
-          // 非 JSON → 当日志处理
-          console.warn("[stdout text]", trimmed);
-
-          onEvent({
-            type: "log",
-            message: trimmed,
-          });
         }
-      }
-    });
-
-    /* ---------- stderr ---------- */
-    child.stderr.on("data", (err: string) => {
-      console.error("[stderr]", err);
-
-      onEvent({
-        type: "error",
-        message: err.trim(),
       });
 
-      onError?.(err);
-    });
+      child.stderr.on("data", (err: string) => {
+        onEvent({ type: "error", message: err.trim() });
+        onError?.(err);
+      });
 
-    /* ---------- exit ---------- */
-    child.on("exit", async (code: number) => {
-      console.log("[update] exit:", code);
+      child.on("exit", async (code: number) => {
+        if (code === 0) {
+          onEvent({ type: "done" });
 
-      if (code === 0) {
-        onEvent({ type: "done" });
-        if (newVersion) {
-          await setIconsVersion(newVersion);
-        } else {
-          const info = await checkUpdate();
-          await setIconsVersion(info.latest_version);
+          try {
+            if (newVersion) {
+              await setIconsVersion(newVersion);
+            } else {
+              const info = await checkUpdate();
+              await setIconsVersion(info.latest_version);
+            }
+          } catch {}
+
+          onDone?.();
+          resolve(); // ✅ 关键
+          return;
         }
-        onDone?.();
-        return;
-      }
 
-      const msg = `exit code ${code}`;
-      onEvent({ type: "error", message: msg });
-      onError?.(msg);
-    });
+        const msg = `exit code ${code}`;
+        onEvent({ type: "error", message: msg });
+        onError?.(msg);
+        reject(new Error(msg)); // ✅ 关键
+      });
 
-    /* ---------- error ---------- */
-    child.on("error", (err: any) => {
-      console.error("[update] spawn error:", err);
-
-      const msg = String(err);
-      onEvent({ type: "error", message: msg });
-      onError?.(msg);
+      child.on("error", (err: any) => {
+        const msg = String(err);
+        onEvent({ type: "error", message: msg });
+        onError?.(msg);
+        reject(err); // ✅ 关键
+      });
     });
   };
 
@@ -249,6 +250,7 @@ export function useAPI() {
     loadConfig,
     setChannel,
     checkUpdate,
+    getPackagesCount,
     updateStream,
   };
 }
