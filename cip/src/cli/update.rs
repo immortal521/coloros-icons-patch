@@ -10,4 +10,8 @@ pub struct UpdateCmd {
     /// 是否下载 base.zip（如果配置了 base）
     #[arg(long)]
     pub download_base: bool,
+
+    /// 输出 JSON
+    #[arg(long)]
+    pub json: bool,
 }
