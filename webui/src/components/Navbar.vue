@@ -14,7 +14,6 @@ const tabRefs = ref<Record<string, HTMLElement>>({});
 
 const { t } = useI18n();
 
-// 监听 activeTab 改变，滚动到中间
 watch(
   () => props.activeTab,
   async (activeTab) => {
