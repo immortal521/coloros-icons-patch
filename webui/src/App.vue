@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, useTemplateRef, onMounted } from "vue";
+import { ref, computed, useTemplateRef, onMounted, onBeforeMount } from "vue";
 import Topbar from "./components/Topbar.vue";
 import Navbar from "./components/Navbar.vue";
 import { tabs, type TabKey } from "./tabs";
+import { useConfigStore } from "./stores/configStore";
 
 const page = ref<TabKey>("home");
 
@@ -78,6 +79,10 @@ onMounted(() => {
   });
 
   observer.observe(contentRef.value);
+});
+
+onBeforeMount(() => {
+  useConfigStore().getConfig();
 });
 </script>
 

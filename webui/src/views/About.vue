@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { useI18n } from "../composables/useI18n";
+import { useConfigStore } from "../stores/configStore";
 
 const { t } = useI18n();
+
+const { config } = useConfigStore();
 </script>
 
 <template>
@@ -9,7 +12,7 @@ const { t } = useI18n();
     <h4 class="title">{{ t("label.moduleVersion") }}</h4>
     <div>0.1.3</div>
     <h4 class="title">{{ t("label.iconsVersion") }}</h4>
-    <div>0.1.3</div>
+    <div>{{ config.default.icons_version }}</div>
     <button>项目地址</button>
   </div>
 </template>
