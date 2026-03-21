@@ -14,11 +14,9 @@ PERSIST_DIR="$PERSIST_BASE/$MODID"
 BIN_DIR="$MODPATH/bin"
 RUNTIME_DIR="$PERSIST_DIR/runtime"
 
-UXICONS_DST="my_product/media/theme/uxicons"
-OPLUS_DST="data/oplus/uxicons"
+UXICONS_DST="uxicons"
 
 mkdir -p "$MODPATH/$UXICONS_DST"
-mkdir -p "$MODPATH/$OPLUS_DST"
 
 set_perm_recursive $MODPATH 0 0 0755 0644
 set_perm_recursive $BIN_DIR 0 0 0755 0755

@@ -1,24 +1,357 @@
+<script setup lang="ts">
+import { useI18n } from "../composables/useI18n";
+import { useConfigStore } from "../stores/configStore";
+import type { Channel } from "../types/config";
+import "@material/web/textfield/outlined-text-field.js";
+import "@material/web/select/outlined-select.js";
+import "@material/web/select/select-option.js";
+import "@material/web/button/filled-button.js";
+import "@material/web/iconbutton/filled-tonal-icon-button.js";
+import "@material/web/iconbutton/icon-button.js";
+import "@material/web/icon/icon.js";
+import "@material/web/ripple/ripple.js";
+import "@material/web/dialog/dialog.js";
+import "@material/web/button/text-button.js";
+import "@material/web/switch/switch.js";
+
+const { t } = useI18n();
+
+const { config } = useConfigStore();
+
+const channelOptions: Channel[] = ["stable", "beta"];
+</script>
+
 <template>
-  <md-card>
-    <h3>配置</h3>
-    <md-select label="Channel" v-model="local.channel">
-      <md-list-item value="stable">stable</md-list-item>
-      <md-list-item value="beta">beta</md-list-item>
-    </md-select>
+  <div class="config-container">
+    <section class="config-group">
+      <div class="config-card">
+        <div class="card-header">
+          <div class="card-icon">
+            <md-icon>
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10s10-4.48 10-10S17.52 2 12 2m.06 17v-2.01H12c-1.28 0-2.56-.49-3.54-1.46a5.006 5.006 0 0 1-.64-6.29l1.1 1.1c-.71 1.33-.53 3.01.59 4.13c.7.7 1.62 1.03 2.54 1.01v-2.14l2.83 2.83zm4.11-4.24l-1.1-1.1c.71-1.33.53-3.01-.59-4.13A3.48 3.48 0 0 0 12 8.5h-.06v2.15L9.11 7.83L11.94 5v2.02c1.3-.02 2.61.45 3.6 1.45c1.7 1.7 1.91 4.35.63 6.29"
+                />
+              </svg>
+            </md-icon>
+          </div>
+          <div class="card-text">
+            <span class="card-title">{{ t("label.channel") }}</span>
+            <span class="card-desc">{{ t("label.channelDesc") }} </span>
+          </div>
+        </div>
 
-    <md-text-field label="Runtime Dir" v-model="local.runtime_dir" />
-    <md-text-field label="Temp Dir" v-model="local.temp_dir" />
-    <md-text-field label="Target Dir" v-model="local.target_dir" />
+        <div class="input-stack">
+          <md-outlined-select
+            class="full-width-field"
+            :label="t('label.channel')"
+            :value="config.default.channel"
+            @change="(e: any) => (config.default.channel = e.target.value)"
+          >
+            <md-select-option v-for="item in channelOptions" :key="item" :value="item">
+              {{ item }}
+            </md-select-option>
 
-    <md-button @click="save" raised>保存</md-button>
-  </md-card>
+            <md-icon slot="leading-icon">
+              <svg viewBox="0 0 24 24">
+                <path
+                  d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10s10-4.48 10-10S17.52 2 12 2m.06 17v-2.01H12c-1.28 0-2.56-.49-3.54-1.46a5.006 5.006 0 0 1-.64-6.29l1.1 1.1c-.71 1.33-.53 3.01.59 4.13c.7.7 1.62 1.03 2.54 1.01v-2.14l2.83 2.83zm4.11-4.24l-1.1-1.1c.71-1.33.53-3.01-.59-4.13A3.48 3.48 0 0 0 12 8.5h-.06v2.15L9.11 7.83L11.94 5v2.02c1.3-.02 2.61.45 3.6 1.45c1.7 1.7 1.91 4.35.63 6.29"
+                />
+              </svg>
+            </md-icon>
+          </md-outlined-select>
+        </div>
+      </div>
+    </section>
+  </div>
 </template>
 
-<script setup lang="ts">
-import { reactive } from 'vue'
-
-const props = defineProps<{ config: any }>()
-const local = reactive({ ...props.config })
-
-const save = () => {}
-</script>
+<style scoped>
+.config-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-bottom: 24px;
+}
+.config-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.full-width-field {
+  width: 100%;
+  --md-outlined-text-field-container-shape: 16px;
+}
+.config-card {
+  background-color: var(--md-sys-color-surface-container);
+  border-radius: 20px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background-color: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.card-text {
+  display: flex;
+  flex-direction: column;
+}
+.card-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--md-sys-color-on-surface);
+}
+.card-desc {
+  font-size: 12px;
+  color: var(--md-sys-color-on-surface-variant);
+  white-space: pre-line;
+}
+.input-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.options-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.option-tile {
+  background-color: var(--md-sys-color-surface-container);
+  border-radius: 20px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  transition:
+    background-color 0.2s cubic-bezier(0.2, 0, 0, 1),
+    transform 0.2s;
+  border: none;
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+}
+.option-tile.clickable {
+  cursor: pointer;
+}
+.option-tile.clickable:active {
+  transform: scale(0.98);
+}
+.tile-top {
+  display: flex;
+  align-items: flex-start;
+  pointer-events: none;
+}
+.tile-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+  background-color: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface-variant);
+}
+.tile-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  pointer-events: none;
+}
+.tile-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--md-sys-color-on-surface);
+  line-height: 1.2;
+  white-space: pre-line;
+}
+.option-tile.static-input {
+  background-color: var(--md-sys-color-surface-container);
+  cursor: default;
+}
+.tile-input-overlay {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--md-sys-color-outline);
+  color: var(--md-sys-color-on-surface);
+  font-weight: 600;
+  width: 100%;
+  padding: 4px 0;
+  outline: none;
+  font-size: 16px;
+  pointer-events: auto;
+}
+.tile-input-overlay:focus {
+  border-bottom-width: 2px;
+  border-bottom-color: var(--md-sys-color-primary);
+}
+.option-tile.primary.active {
+  background-color: var(--md-sys-color-primary-container);
+}
+.option-tile.primary.active .tile-icon {
+  background-color: var(--md-sys-color-on-primary-container);
+  color: var(--md-sys-color-primary-container);
+}
+.option-tile.primary.active .tile-label {
+  color: var(--md-sys-color-on-primary-container);
+}
+.option-tile.secondary.active {
+  background-color: var(--md-sys-color-secondary-container);
+}
+.option-tile.secondary.active .tile-icon {
+  background-color: var(--md-sys-color-on-secondary-container);
+  color: var(--md-sys-color-secondary-container);
+}
+.option-tile.secondary.active .tile-label {
+  color: var(--md-sys-color-on-secondary-container);
+}
+.option-tile.tertiary.active {
+  background-color: var(--md-sys-color-tertiary-container);
+}
+.option-tile.tertiary.active .tile-icon {
+  background-color: var(--md-sys-color-on-tertiary-container);
+  color: var(--md-sys-color-tertiary-container);
+}
+.option-tile.tertiary.active .tile-label {
+  color: var(--md-sys-color-on-tertiary-container);
+}
+.option-tile.error.active {
+  background-color: var(--md-sys-color-error-container);
+}
+.option-tile.error.active .tile-icon {
+  background-color: var(--md-sys-color-on-error-container);
+  color: var(--md-sys-color-error-container);
+}
+.option-tile.error.active .tile-label {
+  color: var(--md-sys-color-on-error-container);
+}
+.webui-label {
+  margin: 0 0 8px 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--md-sys-color-primary);
+  opacity: 0.8;
+}
+md-icon svg {
+  fill: currentColor;
+  width: 24px;
+  height: 24px;
+}
+.setting-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+}
+.list-text {
+  display: flex;
+  flex-direction: column;
+}
+.list-title {
+  font-size: 14px;
+  color: var(--md-sys-color-on-surface);
+  font-weight: 500;
+}
+.list-desc {
+  font-size: 12px;
+  color: var(--md-sys-color-on-surface-variant);
+}
+.item-separator {
+  height: 1px;
+  background-color: var(--md-sys-color-outline-variant);
+  opacity: 0.5;
+  margin: 4px 0;
+}
+.num-input {
+  background: var(--md-sys-color-surface-container-high);
+  color: var(--md-sys-color-on-surface);
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 8px;
+  padding: 8px 12px;
+  width: 60px;
+  text-align: center;
+  font-size: 14px;
+  font-family: inherit;
+}
+.num-input:focus {
+  border-color: var(--md-sys-color-primary);
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: -1px;
+}
+.mode-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.mode-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--md-sys-color-outline-variant);
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s;
+  color: var(--md-sys-color-on-surface);
+}
+.mode-item.selected {
+  background: var(--md-sys-color-secondary-container);
+  border-color: var(--md-sys-color-secondary-container);
+  color: var(--md-sys-color-on-secondary-container);
+}
+.mode-info {
+  display: flex;
+  flex-direction: column;
+}
+.mode-title {
+  font-weight: 500;
+  font-size: 1rem;
+  text-transform: uppercase;
+}
+.mode-desc {
+  font-size: 0.8rem;
+  opacity: 0.8;
+  white-space: pre-line;
+}
+.mode-check {
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 0.2s;
+  display: flex;
+  align-items: center;
+}
+.mode-item.selected .mode-check {
+  opacity: 1;
+}
+md-dialog.transparent-scrim {
+  --md-dialog-scrim-color: transparent;
+  --md-sys-color-scrim: transparent;
+}
+</style>

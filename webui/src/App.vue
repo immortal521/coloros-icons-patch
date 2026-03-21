@@ -124,5 +124,6 @@ onMounted(() => {
 .page {
   width: 100vw;
   flex-shrink: 0;
+  padding: 10px;
 }
 </style>
