@@ -1,10 +1,6 @@
 import type { Config } from "../types/config";
 
-/* ---------------- utils ---------------- */
-
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-/* ---------------- mock data ---------------- */
 
 const mockConfig: Config = {
   default: {
@@ -35,8 +31,6 @@ const mockUpdate = {
   revision: 1,
 };
 
-/* ---------------- exec ---------------- */
-
 export const mockExec = async (cmd: string) => {
   await sleep(200);
 
@@ -51,46 +45,97 @@ export const mockExec = async (cmd: string) => {
   return { errno: 0, stdout: "", stderr: "" };
 };
 
-/* ---------------- spawn ---------------- */
-
 export const mockSpawn = () => {
   let stdoutCb: any;
+  let stderrCb: any;
   let exitCb: any;
 
   (async () => {
-    const emit = (o: any) => stdoutCb?.(JSON.stringify(o) + "\n");
+    const emit = (o: any) => {
+      stdoutCb?.(JSON.stringify(o) + "\n");
+    };
 
-    emit({ type: "stage", value: "fetch" });
-    await sleep(300);
+    /* ---------- fetch ---------- */
+    emit({
+      type: "stage",
+      value: "fetch",
+      message:
+        "Fetching index: https://immortal521.github.io/coloros-icons-patch/stable/index.json",
+    });
 
-    emit({ type: "info", value: "version", version: "1.2.0" });
+    await sleep(400);
 
+    emit({
+      type: "info",
+      value: "version",
+      version: "2026.3.21",
+      message: "Latest version: 2026.3.21",
+    });
+
+    /* ---------- download ---------- */
     emit({ type: "stage", value: "download" });
 
-    for (let i = 0; i <= 100; i += 10) {
-      await sleep(120);
-      emit({ type: "progress", stage: "download", value: i });
+    for (let i = 0; i <= 100; i += 2) {
+      await sleep(60);
+      emit({
+        type: "progress",
+        stage: "download",
+        value: i,
+      });
     }
 
+    /* ---------- verify ---------- */
+    emit({
+      type: "stage",
+      value: "verify",
+      message: "Verifying SHA256",
+    });
+
+    await sleep(500);
+
+    emit({
+      type: "info",
+      value: "verify_ok",
+      message: "SHA256 OK",
+    });
+
+    /* ---------- extract ---------- */
     emit({ type: "stage", value: "extract" });
 
-    for (let i = 0; i <= 100; i += 20) {
-      await sleep(120);
-      emit({ type: "progress", stage: "extract", value: i });
+    const total = 30; // 模拟30个文件
+
+    for (let i = 0; i <= total; i++) {
+      await sleep(50);
+
+      emit({
+        type: "progress",
+        stage: "extract",
+        value: Math.floor((i / total) * 100),
+        file: `com.example.app${i}/icon.png`,
+      });
     }
 
-    emit({ type: "done" });
+    /* ---------- done ---------- */
+    emit({
+      type: "done",
+      target: "/data/adb/modules/ColorOSIconsPatch/uxicons",
+    });
+
+    await sleep(200);
+
     exitCb?.(0);
   })();
 
   return {
     stdout: {
-      on(_: string, cb: any) {
-        stdoutCb = cb;
+      on(event: "data", cb: any) {
+        if (event === "data") stdoutCb = cb;
       },
     },
     stderr: {
-      on() {},
+      on(event: "data", cb: any) {
+        if (event === "data") stderrCb = cb;
+      },
     },
     on(event: string, cb: any) {
       if (event === "exit") exitCb = cb;

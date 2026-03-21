@@ -1,8 +1,6 @@
 import { PATHS } from "../constants";
 import type { Config } from "../types/config";
 
-/* ---------------- KernelSU Types ---------------- */
-
 interface ExecOptions {
   cwd?: string;
   env?: Record<string, string>;
@@ -34,8 +32,6 @@ interface ChildProcess {
 
 type KsuSpawn = (command: string, args?: string[], options?: SpawnOptions) => ChildProcess;
 
-/* ---------------- Update Types ---------------- */
-
 interface UpdateInfo {
   current_version: string;
   latest_version: string;
@@ -57,20 +53,15 @@ export type UpdateEvent =
   | { type: "log"; message: string }
   | { type: "error"; message: string };
 
-/* ---------------- Runtime ---------------- */
-
 let ksuExec: KsuExec | null = null;
 let ksuSpawn: KsuSpawn | null = null;
 let initPromise: Promise<void> | null = null;
-
-/* ---------------- init ---------------- */
 
 const initKernelSU = async () => {
   if (ksuExec && ksuSpawn) return;
 
   if (!initPromise) {
     initPromise = (async () => {
-      // ✅ dev 自动 mock（不会打进生产包）
       if (import.meta.env.DEV) {
         console.warn("[KernelSU] DEV MODE → using MOCK");
 
@@ -81,7 +72,6 @@ const initKernelSU = async () => {
         return;
       }
 
-      // ✅ 生产环境：真实 kernelsu
       try {
         const mod = (await import("kernelsu")) as any;
         const api = mod.default ?? mod;
@@ -104,11 +94,7 @@ const initKernelSU = async () => {
   await initPromise;
 };
 
-/* ---------------- API ---------------- */
-
 export function useAPI() {
-  /* ---------- ensure ---------- */
-
   const ensureExec = async (): Promise<KsuExec> => {
     await initKernelSU();
     if (!ksuExec) throw new Error("KernelSU exec not available");
@@ -121,8 +107,6 @@ export function useAPI() {
     return ksuSpawn;
   };
 
-  /* ---------- exec helper ---------- */
-
   const execOrThrow = async (cmd: string) => {
     const exec = await ensureExec();
     const res = await exec(cmd);
@@ -133,8 +117,6 @@ export function useAPI() {
 
     return res.stdout.trim();
   };
-
-  /* ---------- config ---------- */
 
   const loadConfig = async (): Promise<Config> => {
     const stdout = await execOrThrow(`${PATHS.CIP_BIN} config get --config ${PATHS.CONFIG} --json`);
@@ -147,7 +129,7 @@ export function useAPI() {
 
   const setIconsVersion = async (version: string) => {
     await execOrThrow(
-      `${PATHS.CIP_BIN} config set --config ${PATHS.CONFIG} --icons_version ${version}`,
+      `${PATHS.CIP_BIN} config set --config ${PATHS.CONFIG} --icons-version ${version}`,
     );
   };
 
@@ -162,14 +144,10 @@ export function useAPI() {
     return num;
   };
 
-  /* ---------- check update ---------- */
-
   const checkUpdate = async (): Promise<UpdateInfo> => {
     const stdout = await execOrThrow(`${PATHS.CIP_BIN} check --config ${PATHS.CONFIG} --json`);
     return JSON.parse(stdout);
   };
-
-  /* ---------- 🚀 update（流式） ---------- */
 
   const updateStream = async (
     onEvent: (e: UpdateEvent) => void,
@@ -185,6 +163,7 @@ export function useAPI() {
       let buffer = "";
 
       child.stdout.on("data", (chunk: string) => {
+        console.log("[raw stdout]", chunk);
         buffer += chunk;
 
         const lines = buffer.split("\n");
@@ -196,6 +175,8 @@ export function useAPI() {
 
           try {
             const parsed = JSON.parse(trimmed);
+
+            console.log("[parsed event]", parsed);
 
             if (parsed.type === "info" && parsed.value === "version") {
               newVersion = parsed.version;
@@ -227,21 +208,21 @@ export function useAPI() {
           } catch {}
 
           onDone?.();
-          resolve(); // ✅ 关键
+          resolve();
           return;
         }
 
         const msg = `exit code ${code}`;
         onEvent({ type: "error", message: msg });
         onError?.(msg);
-        reject(new Error(msg)); // ✅ 关键
+        reject(new Error(msg));
       });
 
       child.on("error", (err: any) => {
         const msg = String(err);
         onEvent({ type: "error", message: msg });
         onError?.(msg);
-        reject(err); // ✅ 关键
+        reject(err);
       });
     });
   };

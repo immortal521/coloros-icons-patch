@@ -25,11 +25,9 @@ const handleChannelChange = (e: Event) => {
       <div class="card-header">
         <div class="card-icon">
           <md-icon>
-            <div class="icon-container">
-              <svg viewBox="0 0 24 24">
-                <path :d="ICONS.channel" />
-              </svg>
-            </div>
+            <svg viewBox="0 0 24 24">
+              <path :d="ICONS.channel" />
+            </svg>
           </md-icon>
         </div>
 
@@ -46,7 +44,7 @@ const handleChannelChange = (e: Event) => {
         @change="handleChannelChange"
       >
         <md-select-option v-for="item in channelOptions" :key="item" :value="item">
-          {{ item }}
+          {{ t(`channel.${item}`) }}
         </md-select-option>
 
         <md-icon slot="leading-icon">
