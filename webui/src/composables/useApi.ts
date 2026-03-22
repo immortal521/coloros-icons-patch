@@ -97,25 +97,24 @@ const initKernelSU = async () => {
 export function useAPI() {
   const ensureExec = async (): Promise<KsuExec> => {
     await initKernelSU();
-    if (!ksuExec) throw new Error("KernelSU exec not available");
-    return ksuExec;
+    if (ksuExec) return ksuExec;
+    throw new Error("KernelSU exec not available");
   };
 
   const ensureSpawn = async (): Promise<KsuSpawn> => {
     await initKernelSU();
-    if (!ksuSpawn) throw new Error("KernelSU spawn not available");
-    return ksuSpawn;
+    if (ksuSpawn) return ksuSpawn;
+    throw new Error("KernelSU spawn not available");
   };
 
   const execOrThrow = async (cmd: string) => {
-    const exec = await ensureExec();
-    const res = await exec(cmd);
+    const { errno, stdout, stderr } = await (await ensureExec())(cmd);
 
-    if (res.errno !== 0) {
-      throw new Error(res.stderr?.trim() || `Command failed: ${cmd}`);
+    if (errno !== 0) {
+      throw new Error(stderr?.trim() || `Command failed: ${cmd}`);
     }
 
-    return res.stdout.trim();
+    return stdout.trim();
   };
 
   const loadConfig = async (): Promise<Config> => {
@@ -134,14 +133,12 @@ export function useAPI() {
   };
 
   const getPackagesCount = async (): Promise<number> => {
-    const cmd = `find ${PATHS.TARGET_DIR} -mindepth 1 -maxdepth 1 -type d | wc -l`;
+    const stdout = await execOrThrow(
+      `find ${PATHS.TARGET_DIR} -mindepth 1 -maxdepth 1 -type d | wc -l`,
+    );
 
-    const stdout = await execOrThrow(cmd);
-
-    const num = parseInt(stdout.trim(), 10);
-    if (isNaN(num)) return 0;
-
-    return num;
+    const num = parseInt(stdout, 10);
+    return Number.isNaN(num) ? 0 : num;
   };
 
   const checkUpdate = async (): Promise<UpdateInfo> => {
@@ -162,68 +159,112 @@ export function useAPI() {
       let newVersion: string | null = null;
       let buffer = "";
 
-      child.stdout.on("data", (chunk: string) => {
-        console.log("[raw stdout]", chunk);
-        buffer += chunk;
-
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-
-          try {
-            const parsed = JSON.parse(trimmed);
-
-            console.log("[parsed event]", parsed);
-
-            if (parsed.type === "info" && parsed.value === "version") {
-              newVersion = parsed.version;
-            }
-
-            onEvent(parsed);
-          } catch {
-            onEvent({ type: "log", message: trimmed });
-          }
+      const handleParsed = (parsed: any) => {
+        if (parsed?.type === "info" && parsed?.value === "version") {
+          newVersion = parsed.version;
         }
-      });
+        onEvent(parsed);
+      };
 
-      child.stderr.on("data", (err: string) => {
-        onEvent({ type: "error", message: err.trim() });
-        onError?.(err);
-      });
+      const handleLine = (line: string) => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
 
-      child.on("exit", async (code: number) => {
-        if (code === 0) {
-          onEvent({ type: "done" });
+        try {
+          handleParsed(JSON.parse(trimmed));
+        } catch {
+          onEvent({ type: "log", message: trimmed });
+        }
+      };
+
+      const tryParseJSON = (input: string): [any[], string] => {
+        const results: any[] = [];
+
+        while (input) {
+          input = input.trimStart();
+          if (!input) break;
 
           try {
-            if (newVersion) {
-              await setIconsVersion(newVersion);
-            } else {
-              const info = await checkUpdate();
-              await setIconsVersion(info.latest_version);
-            }
+            results.push(JSON.parse(input));
+            return [results, ""];
           } catch {}
 
-          onDone?.();
-          resolve();
+          let splitIndex = -1;
+
+          for (let i = 1; i < input.length; i++) {
+            try {
+              JSON.parse(input.slice(0, i));
+              splitIndex = i;
+              break;
+            } catch {}
+          }
+
+          if (splitIndex === -1) break;
+
+          results.push(JSON.parse(input.slice(0, splitIndex)));
+          input = input.slice(splitIndex);
+        }
+
+        return [results, input];
+      };
+
+      const handleStdout = (chunk: string) => {
+        buffer += chunk;
+
+        if (buffer.includes("\n")) {
+          const lines = buffer.split("\n");
+          buffer = lines.pop() || "";
+
+          lines.forEach(handleLine);
           return;
         }
 
-        const msg = `exit code ${code}`;
+        const [parsedList, rest] = tryParseJSON(buffer);
+        buffer = rest;
+
+        parsedList.forEach(handleParsed);
+      };
+
+      const handleStderr = (err: string) => {
+        const msg = err.trim();
+        if (!msg) return;
+
         onEvent({ type: "error", message: msg });
         onError?.(msg);
-        reject(new Error(msg));
-      });
+      };
 
-      child.on("error", (err: any) => {
+      const handleExit = async (code: number) => {
+        if (code !== 0) {
+          const msg = `exit code ${code}`;
+          onEvent({ type: "error", message: msg });
+          onError?.(msg);
+          reject(new Error(msg));
+          return;
+        }
+
+        onEvent({ type: "done" });
+
+        try {
+          const version = newVersion ?? (await checkUpdate()).latest_version;
+
+          await setIconsVersion(version);
+        } catch {}
+
+        onDone?.();
+        resolve();
+      };
+
+      const handleError = (err: any) => {
         const msg = String(err);
         onEvent({ type: "error", message: msg });
         onError?.(msg);
         reject(err);
-      });
+      };
+
+      child.stdout.on("data", handleStdout);
+      child.stderr.on("data", handleStderr);
+      child.on("exit", handleExit);
+      child.on("error", handleError);
     });
   };
 
