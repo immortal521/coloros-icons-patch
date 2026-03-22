@@ -221,6 +221,16 @@ pub async fn run(config: Config, download_base: bool, json_mode: bool) -> Result
         json_mode,
     )?;
 
+    if let Err(e) = fs::remove_file(&zip_path) {
+        emit(
+            json_mode,
+            json!({
+                "type": "log",
+                "message": format!("failed to remove zip: {}", e)
+            }),
+        );
+    }
+
     emit(
         json_mode,
         json!({
