@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -x
+set -e
 
 # 参数: patch | minor | major | uxicons[-patch|-minor|-major]
 BUMP=$1
