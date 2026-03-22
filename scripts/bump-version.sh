@@ -1,5 +1,5 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -ex
 
 # 参数: patch | minor | major | uxicons[-patch|-minor|-major]
 BUMP=$1
@@ -10,8 +10,11 @@ fi
 
 # 主版本 bump
 if [[ "$BUMP" != uxicons* ]]; then
-  VERSION=$(cat VERSION)
-  IFS='.' read -r MAJOR MINOR PATCH <<<"$VERSION"
+  VERSION=$(<VERSION)
+  IFS='.' read -r MAJOR MINOR PATCH <<<"${VERSION//[[:space:]]/}"
+  MAJOR=${MAJOR:-0}
+  MINOR=${MINOR:-0}
+  PATCH=${PATCH:-0}
 
   case $BUMP in
   major)
@@ -44,13 +47,21 @@ if [[ "$BUMP" != uxicons* ]]; then
 
   git add VERSION module/module.prop webui/package.json "$CARGO_TOML"
   git commit -m "Bump version to $NEW_VERSION"
-  git tag -a "v$NEW_VERSION" -m "Release $NEW_VERSION"
+
+  if ! git rev-parse "v$NEW_VERSION" >/dev/null 2>&1; then
+    git tag -a "v$NEW_VERSION" -m "Release $NEW_VERSION"
+  else
+    echo "Tag v$NEW_VERSION already exists, skipping tag creation."
+  fi
 fi
 
 # uxicons bump
 if [[ "$BUMP" == uxicons* ]]; then
-  UX_VERSION=$(cat uxicons/VERSION)
-  IFS='.' read -r MAJOR MINOR PATCH <<<"$UX_VERSION"
+  UX_VERSION=$(<uxicons/VERSION)
+  IFS='.' read -r MAJOR MINOR PATCH <<<"${UX_VERSION//[[:space:]]/}"
+  MAJOR=${MAJOR:-0}
+  MINOR=${MINOR:-0}
+  PATCH=${PATCH:-0}
 
   case $BUMP in
   uxicons | uxicons-patch) ((PATCH++)) ;;
@@ -66,13 +77,18 @@ if [[ "$BUMP" == uxicons* ]]; then
   esac
 
   NEW_UXVERSION="$MAJOR.$MINOR.$PATCH"
-  echo "$NEW_UXVERSION" >uxicons/VERSION
+  echo "$NEW_UXVERSION" | tee uxicons/VERSION
   echo "Bumped uxicons version to $NEW_UXVERSION"
 
   # 更新锁文件
-  echo "uxicons=$NEW_UXVERSION" >uxicons.lock
+  echo "uxicons=$NEW_UXVERSION" | tee uxicons.lock
 
   git add uxicons/VERSION uxicons.lock
   git commit -m "Bump uxicons to $NEW_UXVERSION"
-  git tag -a "uxicons/v$NEW_UXVERSION" -m "Release uxicons $NEW_UXVERSION"
+
+  if ! git rev-parse "uxicons/v$NEW_UXVERSION" >/dev/null 2>&1; then
+    git tag -a "uxicons/v$NEW_UXVERSION" -m "Release uxicons $NEW_UXVERSION"
+  else
+    echo "Tag uxicons/v$NEW_UXVERSION already exists, skipping tag creation."
+  fi
 fi
