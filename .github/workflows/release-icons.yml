@@ -82,41 +82,41 @@ jobs:
           echo "sha256=$SHA256" >> $GITHUB_OUTPUT
           echo "size=$SIZE" >> $GITHUB_OUTPUT
 
-- name: Build index.json
-  id: index
-  shell: bash
-  run: |
-    set -euo pipefail
-    UX_VERSION=$(cat uxicons/VERSION)
-    REVISION=1
-    PUBLISHED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-    ZIP="${{ steps.create-zip.outputs.zip_name }}"
-    TAG="icons/stable/v${UX_VERSION}-r${REVISION}"
-    DL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${ZIP}"
+      - name: Build index.json
+        id: index
+        shell: bash
+        run: |
+          set -euo pipefail
+          UX_VERSION=$(cat uxicons/VERSION)
+          REVISION=1
+          PUBLISHED_AT="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          ZIP="${{ steps.create-zip.outputs.zip_name }}"
+          TAG="icons/stable/v${UX_VERSION}-r${REVISION}"
+          DL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${ZIP}"
 
-    jq -n \
-      --arg channel "stable" \
-      --arg icons_version "$UX_VERSION" \
-      --argjson revision $REVISION \
-      --arg zip_name "$ZIP" \
-      --arg zip_sha256 "${{ steps.hash.outputs.sha256 }}" \
-      --argjson zip_size "${{ steps.hash.outputs.size }}" \
-      --arg download_url "$DL" \
-      --arg published_at "$PUBLISHED_AT" \
-      '{
-        channel: $channel,
-        icons_version: $icons_version,
-        revision: $revision,
-        zip_name: $zip_name,
-        zip_sha256: $zip_sha256,
-        zip_size: $zip_size,
-        download_url: $download_url,
-        published_at: $published_at
-      }' > index.json
+          jq -n \
+            --arg channel "stable" \
+            --arg icons_version "$UX_VERSION" \
+            --argjson revision $REVISION \
+            --arg zip_name "$ZIP" \
+            --arg zip_sha256 "${{ steps.hash.outputs.sha256 }}" \
+            --argjson zip_size "${{ steps.hash.outputs.size }}" \
+            --arg download_url "$DL" \
+            --arg published_at "$PUBLISHED_AT" \
+            '{
+              channel: $channel,
+              icons_version: $icons_version,
+              revision: $revision,
+              zip_name: $zip_name,
+              zip_sha256: $zip_sha256,
+              zip_size: $zip_size,
+              download_url: $download_url,
+              published_at: $published_at
+            }' > index.json
 
-    # 设置 step outputs
-    echo "icons_version=$UX_VERSION" >> $GITHUB_OUTPUT
-    echo "zip_name=$ZIP" >> $GITHUB_OUTPUT
+          # 设置 step outputs
+          echo "icons_version=$UX_VERSION" >> $GITHUB_OUTPUT
+          echo "zip_name=$ZIP" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
