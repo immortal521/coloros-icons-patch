@@ -40,5 +40,4 @@ pub struct Index {
     pub zip_size: u64,
     pub download_url: String,
     pub published_at: String,
-    pub notes: String,
 }

@@ -15,7 +15,6 @@ struct CheckResult {
     update_name: String,
     update_size: u64,
     published_at: String,
-    notes: String,
     revision: u32,
 }
 
@@ -50,7 +49,6 @@ pub async fn run(cmd: CheckCmd) -> anyhow::Result<()> {
         update_name: index.zip_name,
         update_size: index.zip_size,
         published_at: index.published_at,
-        notes: index.notes,
         revision: index.revision,
     };
 
