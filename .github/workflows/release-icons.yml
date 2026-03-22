@@ -46,6 +46,11 @@ jobs:
         run: |
           bash scripts/bump-version.sh ${{ steps.uxicons-bump.outputs.BUMP_TYPE }}
 
+      - name: Push version bump
+        shell: bash
+        run: |
+          git push origin HEAD:master
+
       - name: Validate icons dir
         shell: bash
         run: |
@@ -53,18 +58,19 @@ jobs:
           test -d "uxicons"
           test "$(find uxicons -mindepth 1 | head -n 1 | wc -l)" -gt 0
 
-      - name: Create zip
-        shell: bash
-        run: |
-          set -euo pipefail
-          UX_VERSION=$(cat uxicons/VERSION)
-          REVISION=1
-          ZIP_NAME="uxicons-${UX_VERSION}-r${REVISION}.zip"
-          rm -f "$ZIP_NAME"
-          (cd uxicons && zip -r "../$ZIP_NAME" . \
-           -x "VERSION" -x "uxicons.lock" \
-           -x "*.DS_Store" -x "__MACOSX/*")
-          echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
+- name: Create zip
+  id: create-zip
+  shell: bash
+  run: |
+    set -euo pipefail
+    UX_VERSION=$(cat uxicons/VERSION)
+    REVISION=1
+    ZIP_NAME="uxicons-${UX_VERSION}-r${REVISION}.zip"
+    rm -f "$ZIP_NAME"
+    (cd uxicons && zip -r "../$ZIP_NAME" . \
+     -x "VERSION" -x "uxicons.lock" \
+     -x "*.DS_Store" -x "__MACOSX/*")
+    echo "zip_name=$ZIP_NAME" >> $GITHUB_OUTPUT
 
       - name: Compute sha256 and size
         id: hash
